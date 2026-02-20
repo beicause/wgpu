@@ -1,7 +1,10 @@
 use std::{f32::consts, iter, ops::Range};
 
 use bytemuck::{Pod, Zeroable};
-use wgpu::util::{align_to, DeviceExt};
+use wgpu::{
+    util::{align_to, DeviceExt},
+    Origin3d,
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -152,7 +155,9 @@ struct Example {
     lights_are_dirty: bool,
     shadow_pass: Pass,
     forward_pass: Pass,
-    forward_depth: wgpu::TextureView,
+    forward_depth: (wgpu::Texture, wgpu::TextureView),
+    depth_copyable: wgpu::Texture,
+    depth_buffer: wgpu::Buffer,
     entity_bind_group: wgpu::BindGroup,
     light_storage_buf: wgpu::Buffer,
     entity_uniform_buf: wgpu::Buffer,
@@ -181,7 +186,7 @@ impl Example {
     fn create_depth_texture(
         config: &wgpu::SurfaceConfiguration,
         device: &wgpu::Device,
-    ) -> wgpu::TextureView {
+    ) -> (wgpu::Texture, wgpu::TextureView) {
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width: config.width,
@@ -192,12 +197,12 @@ impl Example {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: Self::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TRANSIENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             label: None,
             view_formats: &[],
         });
-
-        depth_texture.create_view(&wgpu::TextureViewDescriptor::default())
+        let view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        (depth_texture, view)
     }
 }
 
@@ -665,6 +670,29 @@ impl crate::framework::Example for Example {
         };
 
         let forward_depth = Self::create_depth_texture(config, device);
+        let depth_copyable = device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: config.width,
+                height: config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: Self::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST,
+            label: None,
+            view_formats: &[],
+        });
+        let depth_buffer = device.create_buffer(&wgpu::wgt::BufferDescriptor {
+            label: None,
+            size: wgpu::wgt::math::align_to(config.width, wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+                as u64
+                * config.height as u64
+                * 4,
+            usage: wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
         Example {
             entities,
@@ -673,6 +701,8 @@ impl crate::framework::Example for Example {
             shadow_pass,
             forward_pass,
             forward_depth,
+            depth_buffer,
+            depth_copyable,
             light_storage_buf,
             entity_uniform_buf,
             entity_bind_group,
@@ -699,6 +729,29 @@ impl crate::framework::Example for Example {
         );
 
         self.forward_depth = Self::create_depth_texture(config, device);
+        self.depth_copyable = device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: config.width,
+                height: config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: Self::DEPTH_FORMAT,
+            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST,
+            label: None,
+            view_formats: &[],
+        });
+        self.depth_buffer = device.create_buffer(&wgpu::wgt::BufferDescriptor {
+            label: None,
+            size: wgpu::wgt::math::align_to(config.width, wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+                as u64
+                * config.height as u64
+                * 4,
+            usage: wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
     }
 
     fn render(&mut self, view: &wgpu::TextureView, device: &wgpu::Device, queue: &wgpu::Queue) {
@@ -808,7 +861,7 @@ impl crate::framework::Example for Example {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.forward_depth,
+                    view: &self.forward_depth.1,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Discard,
@@ -828,6 +881,54 @@ impl crate::framework::Example for Example {
                 pass.set_vertex_buffer(0, entity.vertex_buf.slice(..));
                 pass.draw_indexed(0..entity.index_count as u32, 0, 0..1);
             }
+        }
+        encoder.pop_debug_group();
+
+        encoder.push_debug_group("test copying depth");
+        {
+            encoder.copy_texture_to_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &self.forward_depth.0,
+                    mip_level: 0,
+                    origin: Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyTextureInfo {
+                    texture: &self.depth_copyable,
+                    mip_level: 0,
+                    origin: Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::Extent3d {
+                    width: self.depth_copyable.width(),
+                    height: self.depth_copyable.height(),
+                    depth_or_array_layers: 1,
+                },
+            );
+            encoder.copy_texture_to_buffer(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &self.depth_copyable,
+                    mip_level: 0,
+                    origin: Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &self.depth_buffer,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(wgpu::wgt::math::align_to(
+                            self.depth_copyable.width() * 4,
+                            wgpu::COPY_BYTES_PER_ROW_ALIGNMENT,
+                        )),
+                        rows_per_image: None,
+                    },
+                },
+                wgpu::Extent3d {
+                    width: self.depth_copyable.width(),
+                    height: self.depth_copyable.height(),
+                    depth_or_array_layers: 1,
+                },
+            );
         }
         encoder.pop_debug_group();
 

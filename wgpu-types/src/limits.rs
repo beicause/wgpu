@@ -877,41 +877,36 @@ bitflags::bitflags! {
         /// Supports sample-rate shading.
         const MULTISAMPLED_SHADING = 1 << 12;
 
-        /// Supports copies between depth textures and buffers.
-        ///
-        /// GLES/WebGL don't support this.
-        const DEPTH_TEXTURE_AND_BUFFER_COPIES = 1 << 13;
-
         /// Supports all the texture usages described in WebGPU. If this isn't supported, you
         /// should call `get_texture_format_features` to get how you can use textures of a given format
-        const WEBGPU_TEXTURE_FORMAT_SUPPORT = 1 << 14;
+        const WEBGPU_TEXTURE_FORMAT_SUPPORT = 1 << 13;
 
         /// Supports buffer bindings with sizes that aren't a multiple of 16.
         ///
         /// WebGL doesn't support this.
-        const BUFFER_BINDINGS_NOT_16_BYTE_ALIGNED = 1 << 15;
+        const BUFFER_BINDINGS_NOT_16_BYTE_ALIGNED = 1 << 14;
 
         /// Supports buffers to combine [`BufferUsages::INDEX`] with usages other than [`BufferUsages::COPY_DST`] and [`BufferUsages::COPY_SRC`].
         /// Furthermore, in absence of this feature it is not allowed to copy index buffers from/to buffers with a set of usage flags containing
         /// [`BufferUsages::VERTEX`]/[`BufferUsages::UNIFORM`]/[`BufferUsages::STORAGE`] or [`BufferUsages::INDIRECT`].
         ///
         /// WebGL doesn't support this.
-        const UNRESTRICTED_INDEX_BUFFER = 1 << 16;
+        const UNRESTRICTED_INDEX_BUFFER = 1 << 15;
 
         /// Supports full 32-bit range indices (2^32-1 as opposed to 2^24-1 without this flag)
         ///
         /// Corresponds to Vulkan's `VkPhysicalDeviceFeatures.fullDrawIndexUint32`
-        const FULL_DRAW_INDEX_UINT32 = 1 << 17;
+        const FULL_DRAW_INDEX_UINT32 = 1 << 16;
 
         /// Supports depth bias clamping
         ///
         /// Corresponds to Vulkan's `VkPhysicalDeviceFeatures.depthBiasClamp`
-        const DEPTH_BIAS_CLAMP = 1 << 18;
+        const DEPTH_BIAS_CLAMP = 1 << 17;
 
         /// Supports specifying which view format values are allowed when create_view() is called on a texture.
         ///
         /// The WebGL and GLES backends doesn't support this.
-        const VIEW_FORMATS = 1 << 19;
+        const VIEW_FORMATS = 1 << 18;
 
         /// With this feature not present, there are the following restrictions on `Queue::copy_external_image_to_texture`:
         /// - The source must not be [`web_sys::OffscreenCanvas`]
@@ -922,13 +917,13 @@ bitflags::bitflags! {
         ///   - [`CopyExternalImageDestInfo::premultiplied_alpha`] must be false.
         ///
         /// WebGL doesn't support this. WebGPU does.
-        const UNRESTRICTED_EXTERNAL_TEXTURE_COPIES = 1 << 20;
+        const UNRESTRICTED_EXTERNAL_TEXTURE_COPIES = 1 << 19;
 
         /// Supports specifying which view formats are allowed when calling create_view on the texture returned by
         /// `Surface::get_current_texture`.
         ///
         /// The GLES/WebGL and Vulkan on Android doesn't support this.
-        const SURFACE_VIEW_FORMATS = 1 << 21;
+        const SURFACE_VIEW_FORMATS = 1 << 20;
 
         /// If this is true, calls to `CommandEncoder::resolve_query_set` will be performed on the queue timeline.
         ///
@@ -945,13 +940,13 @@ bitflags::bitflags! {
         ///
         /// Not Supported by:
         /// - GL ES / WebGL
-        const NONBLOCKING_QUERY_RESOLVE = 1 << 22;
+        const NONBLOCKING_QUERY_RESOLVE = 1 << 21;
 
         /// Allows shaders to use `quantizeToF16`, `pack2x16float`, and `unpack2x16float`, which
         /// operate on `f16`-precision values stored in `f32`s.
         ///
         /// Not supported by Vulkan on Mesa when [`Features::SHADER_F16`] is absent.
-        const SHADER_F16_IN_F32 = 1 << 23;
+        const SHADER_F16_IN_F32 = 1 << 22;
     }
 }
 

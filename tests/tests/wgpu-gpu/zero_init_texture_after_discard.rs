@@ -50,9 +50,7 @@ static DISCARDING_DEPTH_TARGET_RESETS_TEXTURE_INIT_STATE_CHECK_VISIBLE_ON_COPY_I
     GpuTestConfiguration = GpuTestConfiguration::new()
     .parameters(
         TestParameters::default()
-            .downlevel_flags(
-                DownlevelFlags::DEPTH_TEXTURE_AND_BUFFER_COPIES | DownlevelFlags::COMPUTE_SHADERS,
-            )
+            .downlevel_flags(DownlevelFlags::COMPUTE_SHADERS)
             .limits(Limits::downlevel_defaults()),
     )
     .run_async(|mut ctx| async move {
@@ -78,10 +76,7 @@ static DISCARDING_EITHER_DEPTH_OR_STENCIL_ASPECT_TEST: GpuTestConfiguration =
     GpuTestConfiguration::new()
         .parameters(
             TestParameters::default()
-                .downlevel_flags(
-                    DownlevelFlags::DEPTH_TEXTURE_AND_BUFFER_COPIES
-                        | DownlevelFlags::COMPUTE_SHADERS,
-                )
+                .downlevel_flags(DownlevelFlags::COMPUTE_SHADERS)
                 .limits(Limits::downlevel_defaults()),
         )
         .run_async(|mut ctx| async move {

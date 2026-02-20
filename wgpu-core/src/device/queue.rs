@@ -783,12 +783,6 @@ impl Queue {
                 size,
             )?;
 
-        if dst.desc.format.is_depth_stencil_format() {
-            self.device
-                .require_downlevel_flags(wgt::DownlevelFlags::DEPTH_TEXTURE_AND_BUFFER_COPIES)
-                .map_err(TransferError::from)?;
-        }
-
         let snatch_guard = self.device.snatchable_lock.read();
 
         let dst_raw = dst.try_raw(&snatch_guard)?;

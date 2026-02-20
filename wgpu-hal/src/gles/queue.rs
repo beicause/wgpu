@@ -675,29 +675,47 @@ impl super::Queue {
                 dst_target,
                 ref copy,
             } => {
-                //TODO: handle 3D copies
+                let attachment = match copy.src_base.aspect {
+                    crate::FormatAspects::COLOR => glow::COLOR_ATTACHMENT0,
+                    crate::FormatAspects::DEPTH => glow::DEPTH_ATTACHMENT,
+                    crate::FormatAspects::STENCIL => glow::STENCIL_ATTACHMENT,
+                    _ => unimplemented!(),
+                };
                 unsafe { gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(self.copy_fbo)) };
                 if is_layered_target(src_target) {
-                    //TODO: handle GLES without framebuffer_texture_3d
                     unsafe {
                         gl.framebuffer_texture_layer(
                             glow::READ_FRAMEBUFFER,
-                            glow::COLOR_ATTACHMENT0,
+                            attachment,
                             Some(src),
                             copy.src_base.mip_level as i32,
                             copy.src_base.array_layer as i32,
                         )
                     };
                 } else {
-                    unsafe {
-                        gl.framebuffer_texture_2d(
-                            glow::READ_FRAMEBUFFER,
-                            glow::COLOR_ATTACHMENT0,
-                            src_target,
-                            Some(src),
-                            copy.src_base.mip_level as i32,
-                        )
-                    };
+                    if src_target == glow::TEXTURE_CUBE_MAP {
+                        let cube_target =
+                            glow::TEXTURE_CUBE_MAP_POSITIVE_X + copy.src_base.array_layer;
+                        unsafe {
+                            gl.framebuffer_texture_2d(
+                                glow::READ_FRAMEBUFFER,
+                                attachment,
+                                cube_target,
+                                Some(src),
+                                copy.src_base.mip_level as i32,
+                            )
+                        };
+                    } else {
+                        unsafe {
+                            gl.framebuffer_texture_2d(
+                                glow::READ_FRAMEBUFFER,
+                                attachment,
+                                src_target,
+                                Some(src),
+                                copy.src_base.mip_level as i32,
+                            )
+                        };
+                    }
                 }
 
                 unsafe { gl.bind_texture(dst_target, Some(dst)) };
@@ -881,12 +899,12 @@ impl super::Queue {
                     log::error!("Not implemented yet: compressed texture copy to buffer");
                     return;
                 }
-                if src_target == glow::TEXTURE_CUBE_MAP
-                    || src_target == glow::TEXTURE_CUBE_MAP_ARRAY
-                {
-                    log::error!("Not implemented yet: cubemap texture copy to buffer");
-                    return;
-                }
+                let attachment = match copy.texture_base.aspect {
+                    crate::FormatAspects::COLOR => glow::COLOR_ATTACHMENT0,
+                    crate::FormatAspects::DEPTH => glow::DEPTH_ATTACHMENT,
+                    crate::FormatAspects::STENCIL => glow::STENCIL_ATTACHMENT,
+                    _ => unimplemented!(),
+                };
                 let format_desc = self.shared.describe_texture_format(src_format);
                 let row_texels = copy
                     .buffer_layout
@@ -931,7 +949,7 @@ impl super::Queue {
                         unsafe {
                             gl.framebuffer_texture_2d(
                                 glow::READ_FRAMEBUFFER,
-                                glow::COLOR_ATTACHMENT0,
+                                attachment,
                                 src_target,
                                 Some(src),
                                 copy.texture_base.mip_level as i32,
@@ -939,24 +957,29 @@ impl super::Queue {
                         };
                         read_pixels(copy.buffer_layout.offset);
                     }
-                    glow::TEXTURE_2D_ARRAY => {
-                        unsafe {
-                            gl.framebuffer_texture_layer(
-                                glow::READ_FRAMEBUFFER,
-                                glow::COLOR_ATTACHMENT0,
-                                Some(src),
-                                copy.texture_base.mip_level as i32,
-                                copy.texture_base.array_layer as i32,
-                            )
-                        };
-                        read_pixels(copy.buffer_layout.offset);
+                    glow::TEXTURE_CUBE_MAP => {
+                        for z in copy.texture_base.origin.z..copy.size.depth {
+                            let cube_target = glow::TEXTURE_CUBE_MAP_POSITIVE_X + z;
+                            unsafe {
+                                gl.framebuffer_texture_2d(
+                                    glow::READ_FRAMEBUFFER,
+                                    attachment,
+                                    cube_target,
+                                    Some(src),
+                                    copy.texture_base.mip_level as i32,
+                                )
+                            };
+                            let offset = copy.buffer_layout.offset
+                                + (z * block_size * row_texels * column_texels) as u64;
+                            read_pixels(offset);
+                        }
                     }
-                    glow::TEXTURE_3D => {
+                    glow::TEXTURE_2D_ARRAY | glow::TEXTURE_CUBE_MAP_ARRAY | glow::TEXTURE_3D => {
                         for z in copy.texture_base.origin.z..copy.size.depth {
                             unsafe {
                                 gl.framebuffer_texture_layer(
                                     glow::READ_FRAMEBUFFER,
-                                    glow::COLOR_ATTACHMENT0,
+                                    attachment,
                                     Some(src),
                                     copy.texture_base.mip_level as i32,
                                     z as i32,
@@ -967,7 +990,6 @@ impl super::Queue {
                             read_pixels(offset);
                         }
                     }
-                    glow::TEXTURE_CUBE_MAP | glow::TEXTURE_CUBE_MAP_ARRAY => unimplemented!(),
                     _ => unreachable!(),
                 }
             }

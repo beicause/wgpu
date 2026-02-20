@@ -97,7 +97,7 @@ pub(crate) fn run_wasm(
         // running WebGPU!
         xshell::cmd!(
             shell,
-            "simple-http-server target/generated -c wasm,html,js -i --coep --coop --ip 127.0.0.1"
+            "simple-http-server target/generated -c wasm,html,js -i --nocache --coep --coop --ip 127.0.0.1"
         )
         .quiet()
         .run()

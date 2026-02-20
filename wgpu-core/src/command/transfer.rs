@@ -1130,13 +1130,6 @@ pub(super) fn copy_buffer_to_texture(
             copy_size,
         )?;
 
-    if dst_texture.desc.format.is_depth_stencil_format() {
-        state
-            .device
-            .require_downlevel_flags(wgt::DownlevelFlags::DEPTH_TEXTURE_AND_BUFFER_COPIES)
-            .map_err(TransferError::from)?;
-    }
-
     // This must happen after parameter validation (so that errors are reported
     // as required by the spec), but before any side effects.
     if copy_size.width == 0 || copy_size.height == 0 || copy_size.depth_or_array_layers == 0 {
@@ -1246,13 +1239,6 @@ pub(super) fn copy_texture_to_buffer(
             CopySide::Destination,
             copy_size,
         )?;
-
-    if src_texture.desc.format.is_depth_stencil_format() {
-        state
-            .device
-            .require_downlevel_flags(wgt::DownlevelFlags::DEPTH_TEXTURE_AND_BUFFER_COPIES)
-            .map_err(TransferError::from)?;
-    }
 
     let dst_raw = dst_buffer.try_raw(state.snatch_guard)?;
     dst_buffer
