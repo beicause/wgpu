@@ -2,7 +2,7 @@ use std::{f32::consts, iter, ops::Range};
 
 use bytemuck::{Pod, Zeroable};
 use wgpu::{
-    util::{align_to, DeviceExt},
+    util::{align_to, DeviceExt, TextureBlitter, TextureBlitterBuilder},
     Origin3d,
 };
 
@@ -158,6 +158,7 @@ struct Example {
     forward_depth: (wgpu::Texture, wgpu::TextureView),
     depth_copyable: wgpu::Texture,
     depth_buffer: wgpu::Buffer,
+    blitter: TextureBlitter,
     entity_bind_group: wgpu::BindGroup,
     light_storage_buf: wgpu::Buffer,
     entity_uniform_buf: wgpu::Buffer,
@@ -680,7 +681,9 @@ impl crate::framework::Example for Example {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: Self::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST,
+            usage: wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             label: None,
             view_formats: &[],
         });
@@ -703,6 +706,7 @@ impl crate::framework::Example for Example {
             forward_depth,
             depth_buffer,
             depth_copyable,
+            blitter: TextureBlitterBuilder::new(device, config.view_formats[0]).build(),
             light_storage_buf,
             entity_uniform_buf,
             entity_bind_group,
@@ -739,7 +743,9 @@ impl crate::framework::Example for Example {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: Self::DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST,
+            usage: wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             label: None,
             view_formats: &[],
         });
@@ -864,7 +870,7 @@ impl crate::framework::Example for Example {
                     view: &self.forward_depth.1,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Discard,
+                        store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
                 }),
@@ -928,6 +934,17 @@ impl crate::framework::Example for Example {
                     height: self.depth_copyable.height(),
                     depth_or_array_layers: 1,
                 },
+            );
+            self.blitter.copy(
+                device,
+                &mut encoder,
+                &self
+                    .depth_copyable
+                    .create_view(&wgpu::wgt::TextureViewDescriptor {
+                        label: Some("blit to screen"),
+                        ..Default::default()
+                    }),
+                view,
             );
         }
         encoder.pop_debug_group();

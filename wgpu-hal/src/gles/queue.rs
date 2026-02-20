@@ -675,34 +675,64 @@ impl super::Queue {
                 dst_target,
                 ref copy,
             } => {
-                let attachment = match copy.src_base.aspect {
-                    crate::FormatAspects::COLOR => glow::COLOR_ATTACHMENT0,
-                    crate::FormatAspects::DEPTH => glow::DEPTH_ATTACHMENT,
-                    crate::FormatAspects::STENCIL => glow::STENCIL_ATTACHMENT,
+                let version = gl.version();
+                let is_min_es_3_2 = version.is_embedded && (version.major, version.minor) >= (3, 2);
+                let is_min_4_3 = !version.is_embedded && (version.major, version.minor) >= (4, 3);
+                if is_min_es_3_2 || is_min_4_3 {
+                    unsafe {
+                        gl.copy_image_sub_data(
+                            src,
+                            src_target,
+                            copy.dst_base.mip_level as i32,
+                            copy.src_base.origin.x as i32,
+                            copy.src_base.origin.y as i32,
+                            copy.src_base.origin.z as i32,
+                            dst,
+                            dst_target,
+                            copy.dst_base.mip_level as i32,
+                            copy.dst_base.origin.x as i32,
+                            copy.dst_base.origin.y as i32,
+                            copy.dst_base.origin.z as i32,
+                            copy.size.width as i32,
+                            copy.size.height as i32,
+                            copy.size.depth as i32,
+                        );
+                    };
+                    return;
+                }
+
+                let (attachment, blit_mask) = match copy.src_base.aspect {
+                    crate::FormatAspects::COLOR => {
+                        (glow::COLOR_ATTACHMENT0, glow::COLOR_BUFFER_BIT)
+                    }
+                    crate::FormatAspects::DEPTH => (glow::DEPTH_ATTACHMENT, glow::DEPTH_BUFFER_BIT),
+                    crate::FormatAspects::STENCIL => {
+                        (glow::STENCIL_ATTACHMENT, glow::STENCIL_BUFFER_BIT)
+                    }
+                    crate::FormatAspects::DEPTH_STENCIL => (
+                        glow::DEPTH_STENCIL_ATTACHMENT,
+                        glow::DEPTH_BUFFER_BIT | glow::STENCIL_BUFFER_BIT,
+                    ),
                     _ => unimplemented!(),
                 };
+
                 unsafe { gl.bind_framebuffer(glow::READ_FRAMEBUFFER, Some(self.copy_fbo)) };
-                if is_layered_target(src_target) {
-                    unsafe {
-                        gl.framebuffer_texture_layer(
-                            glow::READ_FRAMEBUFFER,
-                            attachment,
-                            Some(src),
-                            copy.src_base.mip_level as i32,
-                            copy.src_base.array_layer as i32,
-                        )
-                    };
+                unsafe { gl.bind_framebuffer(glow::DRAW_FRAMEBUFFER, Some(self.draw_fbo)) };
+
+                let depth_or_layer = if src_target == glow::TEXTURE_3D {
+                    copy.src_base.origin.z
                 } else {
-                    if src_target == glow::TEXTURE_CUBE_MAP {
-                        let cube_target =
-                            glow::TEXTURE_CUBE_MAP_POSITIVE_X + copy.src_base.array_layer;
+                    copy.src_base.array_layer
+                };
+                for z in depth_or_layer..copy.size.depth {
+                    if is_layered_target(src_target) {
                         unsafe {
-                            gl.framebuffer_texture_2d(
+                            gl.framebuffer_texture_layer(
                                 glow::READ_FRAMEBUFFER,
                                 attachment,
-                                cube_target,
                                 Some(src),
                                 copy.src_base.mip_level as i32,
+                                z as i32,
                             )
                         };
                     } else {
@@ -710,40 +740,45 @@ impl super::Queue {
                             gl.framebuffer_texture_2d(
                                 glow::READ_FRAMEBUFFER,
                                 attachment,
-                                src_target,
+                                get_2d_target(src_target, copy.src_base.array_layer),
                                 Some(src),
                                 copy.src_base.mip_level as i32,
                             )
                         };
                     }
-                }
-
-                unsafe { gl.bind_texture(dst_target, Some(dst)) };
-                if is_layered_target(dst_target) {
+                    if is_layered_target(dst_target) {
+                        unsafe {
+                            gl.framebuffer_texture_layer(
+                                glow::DRAW_FRAMEBUFFER,
+                                attachment,
+                                Some(dst),
+                                copy.dst_base.mip_level as i32,
+                                z as i32,
+                            )
+                        };
+                    } else {
+                        unsafe {
+                            gl.framebuffer_texture_2d(
+                                glow::DRAW_FRAMEBUFFER,
+                                attachment,
+                                get_2d_target(dst_target, copy.dst_base.array_layer),
+                                Some(dst),
+                                copy.dst_base.mip_level as i32,
+                            )
+                        };
+                    }
                     unsafe {
-                        gl.copy_tex_sub_image_3d(
-                            dst_target,
-                            copy.dst_base.mip_level as i32,
-                            copy.dst_base.origin.x as i32,
-                            copy.dst_base.origin.y as i32,
-                            get_z_offset(dst_target, &copy.dst_base) as i32,
+                        gl.blit_framebuffer(
                             copy.src_base.origin.x as i32,
                             copy.src_base.origin.y as i32,
-                            copy.size.width as i32,
-                            copy.size.height as i32,
-                        )
-                    };
-                } else {
-                    unsafe {
-                        gl.copy_tex_sub_image_2d(
-                            get_2d_target(dst_target, copy.dst_base.array_layer),
-                            copy.dst_base.mip_level as i32,
+                            (copy.src_base.origin.x + copy.size.width) as i32,
+                            (copy.src_base.origin.y + copy.size.height) as i32,
                             copy.dst_base.origin.x as i32,
                             copy.dst_base.origin.y as i32,
-                            copy.src_base.origin.x as i32,
-                            copy.src_base.origin.y as i32,
-                            copy.size.width as i32,
-                            copy.size.height as i32,
+                            (copy.dst_base.origin.x + copy.size.width) as i32,
+                            (copy.dst_base.origin.y + copy.size.height) as i32,
+                            blit_mask,
+                            glow::NEAREST,
                         )
                     };
                 }
@@ -903,6 +938,7 @@ impl super::Queue {
                     crate::FormatAspects::COLOR => glow::COLOR_ATTACHMENT0,
                     crate::FormatAspects::DEPTH => glow::DEPTH_ATTACHMENT,
                     crate::FormatAspects::STENCIL => glow::STENCIL_ATTACHMENT,
+                    crate::FormatAspects::DEPTH_STENCIL => glow::DEPTH_STENCIL_ATTACHMENT,
                     _ => unimplemented!(),
                 };
                 let format_desc = self.shared.describe_texture_format(src_format);
@@ -958,8 +994,8 @@ impl super::Queue {
                         read_pixels(copy.buffer_layout.offset);
                     }
                     glow::TEXTURE_CUBE_MAP => {
-                        for z in copy.texture_base.origin.z..copy.size.depth {
-                            let cube_target = glow::TEXTURE_CUBE_MAP_POSITIVE_X + z;
+                        for z in copy.texture_base.array_layer..copy.size.depth {
+                            let cube_target = get_2d_target(src_target, z);
                             unsafe {
                                 gl.framebuffer_texture_2d(
                                     glow::READ_FRAMEBUFFER,
@@ -975,7 +1011,12 @@ impl super::Queue {
                         }
                     }
                     glow::TEXTURE_2D_ARRAY | glow::TEXTURE_CUBE_MAP_ARRAY | glow::TEXTURE_3D => {
-                        for z in copy.texture_base.origin.z..copy.size.depth {
+                        let depth_or_layer = if src_target == glow::TEXTURE_3D {
+                            copy.texture_base.origin.z
+                        } else {
+                            copy.texture_base.array_layer
+                        };
+                        for z in depth_or_layer..copy.size.depth {
                             unsafe {
                                 gl.framebuffer_texture_layer(
                                     glow::READ_FRAMEBUFFER,
