@@ -96,6 +96,7 @@ impl Texture {
         TextureView {
             inner: view,
             texture: self.clone(),
+            format: desc.format.unwrap_or(self.format()),
         }
     }
 
