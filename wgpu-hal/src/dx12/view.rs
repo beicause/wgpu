@@ -46,11 +46,11 @@ fn aspects_to_plane(aspects: crate::FormatAspects) -> u32 {
 impl ViewDescriptor {
     pub(crate) unsafe fn to_srv(&self) -> Option<Direct3D12::D3D12_SHADER_RESOURCE_VIEW_DESC> {
         let swizzle = if self.aspects == crate::FormatAspects::STENCIL {
-            /// Stencil views use `DXGI_FORMAT_X24_TYPELESS_G8_UINT` or
-            /// `DXGI_FORMAT_X32_TYPELESS_G8X24_UINT`, which have the stencil value in
-            /// the green component. WebGPU specifies that the stencil value be in the
-            /// red component. It also specifies that the remaining components _should_
-            /// be (0, 0, 1), but may have an unspecified value.
+            // Stencil views use `DXGI_FORMAT_X24_TYPELESS_G8_UINT` or
+            // `DXGI_FORMAT_X32_TYPELESS_G8X24_UINT`, which have the stencil value in
+            // the green component. WebGPU specifies that the stencil value be in the
+            // red component. It also specifies that the remaining components _should_
+            // be (0, 0, 1), but may have an unspecified value.
             wgt::TextureComponentSwizzle {
                 r: wgt::ComponentSwizzle::G,
                 g: wgt::ComponentSwizzle::Zero,
