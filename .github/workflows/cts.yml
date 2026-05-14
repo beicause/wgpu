@@ -42,9 +42,9 @@ jobs:
           # the items below attach the rest of the configuration values that apply to suites
           # and platforms.
           - suite: API Operation
-            filter: "^webgpu:api,operation,"
+            filter: "^webgpu:api,operation,texture_view,texture_component_swizzle,*"
           - suite: API Validation
-            filter: "^webgpu:api,validation,"
+            filter: "^webgpu:api,validation,capability_checks,features,texture_component_swizzle,*"
           - suite: Other
             filter: "!^webgpu:api,operation,|^webgpu:api,validation,"
 
