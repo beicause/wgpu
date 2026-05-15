@@ -497,3 +497,18 @@ pub(crate) fn map_texture_component_swizzle(
         map_component_swizzle(swizzle.a),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use windows::Win32::Graphics::Direct3D12;
+
+    use crate::dx12::conv::map_texture_component_swizzle;
+
+    #[test]
+    fn map_identity_texture_component_swizzle() {
+        assert_eq!(
+            map_texture_component_swizzle(wgt::TextureComponentSwizzle::default()),
+            Direct3D12::D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING
+        );
+    }
+}

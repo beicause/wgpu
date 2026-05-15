@@ -630,7 +630,7 @@ impl crate::Device for super::Device {
         }
         .map(conv::map_texture_component_swizzle);
 
-        let raw = if format_equal && type_equal && range_full_resource {
+        let raw = if format_equal && type_equal && range_full_resource && swizzle.is_none() {
             // Some images are marked as framebuffer-only, and we can't create aliases of them.
             // Also helps working around Metal bugs with aliased array textures.
             texture.raw.to_owned()
