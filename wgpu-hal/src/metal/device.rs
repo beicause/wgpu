@@ -608,11 +608,16 @@ impl crate::Device for super::Device {
         let range_full_resource =
             desc.range
                 .is_full_resource(desc.format, texture.mip_levels, texture.array_layers);
-        let swizzle = if desc.swizzle != wgt::TextureComponentSwizzle::default() {
-            Some(desc.swizzle)
-        } else {
+        let swizzle = 'b: {
+            if !self.shared.private_caps.texture_component_swizzle {
+                break 'b None;
+            }
+            if desc.swizzle != wgt::TextureComponentSwizzle::default() {
+                break 'b Some(desc.swizzle);
+            }
             None
-        };
+        }
+        .map(conv::map_texture_component_swizzle);
 
         let raw = if format_equal && type_equal && range_full_resource {
             // Some images are marked as framebuffer-only, and we can't create aliases of them.
