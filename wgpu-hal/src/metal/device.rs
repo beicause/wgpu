@@ -608,6 +608,11 @@ impl crate::Device for super::Device {
         let range_full_resource =
             desc.range
                 .is_full_resource(desc.format, texture.mip_levels, texture.array_layers);
+        let swizzle = if desc.swizzle != wgt::TextureComponentSwizzle::default() {
+            Some(desc.swizzle)
+        } else {
+            None
+        };
 
         let raw = if format_equal && type_equal && range_full_resource {
             // Some images are marked as framebuffer-only, and we can't create aliases of them.
@@ -633,15 +638,28 @@ impl crate::Device for super::Device {
                     length: array_layer_count as _,
                 };
                 let raw = unsafe {
-                    texture
-                        .raw
-                        .newTextureViewWithPixelFormat_textureType_levels_slices(
-                            raw_format,
-                            raw_type,
-                            level_range,
-                            slice_range,
-                        )
-                        .unwrap()
+                    if let Some(swizzle) = swizzle {
+                        texture
+                            .raw
+                            .newTextureViewWithPixelFormat_textureType_levels_slices_swizzle(
+                                raw_format,
+                                raw_type,
+                                level_range,
+                                slice_range,
+                                swizzle,
+                            )
+                            .unwrap()
+                    } else {
+                        texture
+                            .raw
+                            .newTextureViewWithPixelFormat_textureType_levels_slices(
+                                raw_format,
+                                raw_type,
+                                level_range,
+                                slice_range,
+                            )
+                            .unwrap()
+                    }
                 };
                 if let Some(label) = desc.label {
                     raw.setLabel(Some(&NSString::from_str(label)));
