@@ -16,6 +16,7 @@ use crate::*;
 pub struct TextureView {
     pub(crate) inner: dispatch::DispatchTextureView,
     pub(crate) texture: Texture,
+    pub(crate) view_format: TextureFormat,
 }
 #[cfg(send_sync)]
 static_assertions::assert_impl_all!(TextureView: Send, Sync);
@@ -29,6 +30,14 @@ impl TextureView {
     /// by cloning it.
     pub fn texture(&self) -> &Texture {
         &self.texture
+    }
+
+    /// Returns the [`TextureFormat`] of this `TextureView`.
+    ///
+    /// This is [`TextureViewDescriptor::format`] if it is `Some`,
+    /// or [`Self::texture().format()`](Texture::format) otherwise.
+    pub fn view_format(&self) -> TextureFormat {
+        self.view_format
     }
 
     /// Get the [`wgpu_hal`] texture view from this `TextureView`.

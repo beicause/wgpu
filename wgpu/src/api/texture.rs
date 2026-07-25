@@ -110,6 +110,7 @@ impl Texture {
         TextureView {
             inner: view,
             texture: self.clone(),
+            view_format: desc.format.unwrap_or(self.format()),
         }
     }
 
